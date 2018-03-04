@@ -1,4 +1,6 @@
 """
+1d MMC program.
+
 A Metropolis MC program to calculate averages and probability
 distributions of an arbitrary potential. To add a new potential
 define it as a function and add it to the Else-If list in
@@ -8,11 +10,12 @@ the PotCalc function.
 import numpy as np
 import random as ran
 
+
 def harmOsc(x):
-    global k
     k = 10.  # kcal/mol/m^2
     v = k*x**2/2.
     return v
+
 
 def Morse(x):
     De = 1.0  # depth of the potential well (dissociation E)
@@ -20,33 +23,48 @@ def Morse(x):
     v = De*(1.0-np.exp(-a*x))**2
     return v
 
+
 def Pot3(x):
     a = np.sqrt(48.)  # kcal/mol/A^2
     b = 1.  # kcal/mol/A^4
     v = -0.5*a*x**2 + 0.25*b*x**4 + 0.25*a**2/b
     return v
 
+
 def UmPot(x):
     c = -12  # gaussian height
-    d = 0.35  #  width scaling (2*sigma^2)^-1 
+    d = 0.35  # width scaling (2*sigma^2)^-1
     v = c*np.exp(-d*x**2)
     return v
 
+
+def PIMCpot(x, xmin1, xplus1):
+    """Calculate the effective potential including due to the harmonic
+    constraint between PIMC beads
+    """
+    omega = 1.
+    mass = 1.
+    pes = PotCalc(pot)
+    energy = 0.5*mass*omega**2*((xmin1-x)**2+(xplus1-x)**2)+pes
+    return energy
+
+
 def PotCalc(pot):
-    if pot == 'HO':  #  Harmonic oscillator potential
+    if pot == 'HO':  # Harmonic oscillator potential
         v = harmOsc(x)
-    elif pot == 'Morse':  #  Morse potential
+    elif pot == 'Morse':  # Morse potential
         v = Morse(x)
-    elif pot == 'Pot3':  #  quartic potential
+    elif pot == 'Pot3':  # quartic potential
         v = Pot3(x)
-    elif pot == 'UmPot':  #  quartic potential + umbrella potential
+    elif pot == 'UmPot':  # quartic potential + umbrella potential
         v = UmPot(x) + Pot3(x)
     else:
         v = False
     return v
 
+
 x = np.sqrt(np.sqrt(48))
-#x = ran.random()  # Angstroms
+# x = ran.random()  # Angstroms
 hist = np.zeros([10000])
 binsize = 0.001  # A
 move = .5  # A
@@ -57,7 +75,7 @@ while v == False:
     print('enter a potential')
     pot = input('HO,Morse,Pot3,UmPot  ')
     v = PotCalc(pot)
-    
+
 count = 0.0
 samp = int(input('number of MC steps:  '))
 sqrs = x**2
@@ -107,7 +125,7 @@ for i,p in enumerate(hist):
         # normalized based on XMGRACE integration
     elif pot=='HO':
         p_x = np.sqrt(beta*k/np.pi)*np.exp(-beta*k*x**2)  # analytical P(x)
-        histfile.write(str(x) + ' ' + str(p/(count*binsize)) + 
+        histfile.write(str(x) + ' ' + str(p/(count*binsize)) +
                    ' ' + str(p_x) + '\n')
     else:
-        histfile.write(str(x) + ' ' + str(p/(count*binsize)) + '\n' )
+        histfile.write(str(x) + ' ' + str(p/(count*binsize)) + '\n')
