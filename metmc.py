@@ -45,14 +45,63 @@ def PotCalc(pot):
         v = False
     return v
 
-x = np.sqrt(np.sqrt(48))
-#x = ran.random()  # Angstroms
+def Tot_Pot():
+    v=0
+    delx=0
+    for bead in range(nbeads):
+        if bead == 0:
+            delx=xo[bead]-xo[nbeads]
+        else:
+            delx=xo[bead]-xo[bead+1]
+        v+=HarmOsc(delx)
+    return v
+
+def Generate_Init():
+    for bead in nbeads:
+        if bead == 0:
+            xo[bead]=x+move*(ran.random()-0.5)
+        else:
+            xo[bead]=xo[bead-1]+move*(ran.random()-0.5)
+    return xo
+
+def Center_of_Mass(x):
+    com=0
+    for bead in range(nbeads):
+        com+=x[bead]
+    com = com/float(nbeads)
+    return com
+
+
+def Metropolis_Engine(xo,vo):
+    xn=[nbeads]
+    vn=[nbeads]
+    for bead in range(nbeads):
+        xn[bead] = xo[bead] + move*(ran.random()-0.5)
+        vn[bead]=PotCalc(pot)
+        if vn[bead] > vo[bead]:
+            prob = np.exp(-beta*(vn[bead]-vo[bead]))
+            if prob < ran.random():
+                xn[bead] = xo[bead]
+                vn[bead] = vo[bead]
+
+    x=Center_of_Mass(xn)
+    v=Pot_Calc(pot)
+    return x,v
+
+
 hist = np.zeros([10000])
 binsize = 0.001  # A
 move = .5  # A
-xsum = x
 beta = 1.0/0.6  #  mol/kcal
+nbeads = 10
 v = False
+
+xo=[]
+# Generate initial coords
+x=ran.random()
+xo,vo=Generate_Init()
+
+
 while v == False:
     print('enter a potential')
     pot = input('HO,Morse,Pot3,UmPot  ')
@@ -69,15 +118,7 @@ vsum = v
 histfile = open('umb_hist.txt','w')
 
 for i in range(samp):
-    xold = x
-    vold = v
-    x += move*(ran.random()-0.5)
-    v = PotCalc(pot)
-    if v > vold:
-        prob = np.exp(-beta*(v-vold))
-        if prob < ran.random():
-            x = xold
-            v = vold
+    x,v = Metropolis_Engine(xo,vo)
     count += 1.0
 #    print(x)
     bin = int((x+5.)/binsize)
