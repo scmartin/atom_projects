@@ -38,42 +38,97 @@ def UmPot(x):
     return v
 
 
-def PIMCpot(x, xmin1, xplus1):
+def PIMCpot(ind):
     """Calculate the effective potential including due to the harmonic
     constraint between PIMC beads
     """
     omega = 1.
     mass = 1.
-    pes = PotCalc(pot)
-    energy = 0.5*mass*omega**2*((xmin1-x)**2+(xplus1-x)**2)+pes
+    pes = PotCalc(Pot3,ind)
+    energy = 0.5*mass*omega**2*((x[ind-1]-x[ind])**2+(x[ind+1]-x[ind])**2)+pes
     return energy
 
 
-def PotCalc(pot):
+def PotCalc(pot, ind):
     if pot == 'HO':  # Harmonic oscillator potential
-        v = harmOsc(x)
+        v = harmOsc(ind)
     elif pot == 'Morse':  # Morse potential
-        v = Morse(x)
+        v = Morse(ind)
     elif pot == 'Pot3':  # quartic potential
-        v = Pot3(x)
+        v = Pot3(ind)
     elif pot == 'UmPot':  # quartic potential + umbrella potential
-        v = UmPot(x) + Pot3(x)
+        v = UmPot(ind) + Pot3(ind)
+    elif pot == 'PIMC':
+        v = PIMCpot(ind)
     else:
         v = False
     return v
 
+def Tot_Pot():
+    v=0
+    delx=0
+    for bead in range(nbeads):
+        if bead == 0:
+            delx=xo[bead]-xo[nbeads]
+        else:
+            delx=xo[bead]-xo[bead+1]
+        v+=HarmOsc(delx)
+    return v
 
-x = np.sqrt(np.sqrt(48))
-# x = ran.random()  # Angstroms
+def Generate_Init():
+    for bead in nbeads:
+        if bead == 0:
+            xo[bead]=x+move*(ran.random()-0.5)
+        else:
+            xo[bead]=xo[bead-1]+move*(ran.random()-0.5)
+    return xo
+
+def Center_of_Mass(x):
+    com=0
+    for bead in range(nbeads):
+        com+=x[bead]
+    com = com/float(nbeads)
+    return com
+
+
+def Metropolis_Engine(xo,vo):
+    xn=xo
+    vn=vo
+    beadind=int(ran.random()*(nbeads+1))
+    xn[beadind] = xo[beadind] + move*(ran.random()-0.5)
+    vn[beadind]=PotCalc(pot)
+    print("old potentials")
+    print(vo)
+    print("new potentials")
+    print(vn)
+    print()
+    if vn[beadind] > vo[beadind]:
+        prob = np.exp(-beta*(vn[bead]-vo[bead]))
+        if prob < ran.random():
+            xn[beadind] = xo[beadind]
+            vn[beadind] = vo[beadind]
+
+    x=Center_of_Mass(xn)
+    v=Pot_Calc(pot)
+    return x,v
+
+
 hist = np.zeros([10000])
 binsize = 0.001  # A
 move = .5  # A
-xsum = x
-beta = 1.0/0.6  #  mol/kcal
+beta = 1.0/0.6  # mol/kcal
+nbeads = 10
 v = False
+
+xo=[]
+# Generate initial coords
+x=ran.random()
+xo,vo=Generate_Init()
+
+
 while v == False:
     print('enter a potential')
-    pot = input('HO,Morse,Pot3,UmPot  ')
+    pot = input('HO,Morse,Pot3,UmPot,PIMC  ')
     v = PotCalc(pot)
 
 count = 0.0
@@ -84,18 +139,11 @@ vsum = v
 
 #xfile = open('xavg.txt','w')
 #sqrfile = open('sqravg.txt','w')
-histfile = open('umb_hist.txt','w')
+histfilename = str(pot)+'.txt'
+histfile = open(histfilename,'w')
 
 for i in range(samp):
-    xold = x
-    vold = v
-    x += move*(ran.random()-0.5)
-    v = PotCalc(pot)
-    if v > vold:
-        prob = np.exp(-beta*(v-vold))
-        if prob < ran.random():
-            x = xold
-            v = vold
+    x,v = Metropolis_Engine(xo,vo)
     count += 1.0
 #    print(x)
     bin = int((x+5.)/binsize)
