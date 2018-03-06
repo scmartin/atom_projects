@@ -11,30 +11,31 @@ import numpy as np
 import random as ran
 
 
-def harmOsc(x, ind):
+def harmOsc(x):
+    global k
     k = 10.  # kcal/mol/m^2
-    v = k*x[ind]**2/2.
+    v = k*x**2/2.
     return v
 
 
-def Morse(x, ind):
+def Morse(x):
     De = 1.0  # depth of the potential well (dissociation E)
     a = 1.0   # molecular parameter for potential minimum position
-    v = De*(1.0-np.exp(-a*x[ind]))**2
+    v = De*(1.0-np.exp(-a*x))**2
     return v
 
 
-def Pot3(x, ind):
+def Pot3(x):
     a = np.sqrt(48.)  # kcal/mol/A^2
     b = 1.  # kcal/mol/A^4
-    v = -0.5*a*x[ind]**2 + 0.25*b*x[ind]**4 + 0.25*a**2/b
+    v = -0.5*a*x**2 + 0.25*b*x**4 + 0.25*a**2/b
     return v
 
 
-def UmPot(x, ind):
+def UmPot(x):
     c = -12  # gaussian height
     d = 0.35  # width scaling (2*sigma^2)^-1
-    v = c*np.exp(-d*x[ind]**2)
+    v = c*np.exp(-d*x**2)
     return v
 
 
@@ -44,22 +45,23 @@ def PIMCpot(x, ind):
     """
     omega = 1.
     mass = 1.
-    pes = PotCalc(Pot3, x, ind)
-    energy = 0.5*mass*omega**2*((x[ind-1]-x[ind])**2+(x[ind+1]-x[ind])**2)+pes
+    pes = PotCalc(pot, x[ind])
+    if ind < nbeads-1:
+        energy = 0.5*mass*omega**2*((x[ind-1]-x[ind])**2+(x[ind+1]-x[ind])**2)+pes
+    else:
+        energy = 0.5*mass*omega**2*((x[ind-1]-x[ind])**2+(x[0]-x[ind])**2)+pes
     return energy
 
 
-def PotCalc(pot, x, ind):
+def PotCalc(pot, x):
     if pot == 'HO':  # Harmonic oscillator potential
-        v = harmOsc(x, ind)
+        v = harmOsc(x)
     elif pot == 'Morse':  # Morse potential
-        v = Morse(x, ind)
+        v = Morse(x)
     elif pot == 'Pot3':  # quartic potential
-        v = Pot3(x, ind)
+        v = Pot3(x)
     elif pot == 'UmPot':  # quartic potential + umbrella potential
-        v = UmPot(x, ind) + Pot3(x, ind)
-    elif pot == 'PIMC':
-        v = PIMCpot(x, ind)
+        v = UmPot(x) + Pot3(x)
     else:
         v = False
     return v
@@ -84,8 +86,8 @@ def Generate_Init():
         else:
             xo.append(xo[bead-1]+move*(ran.random()-0.5))
     for i in range(nbeads):
-        vo.append(PotCalc(pot, xo, i))
-    return xo
+        vo.append(PotCalc(pot, xo[i]))
+    return xo, vo
 
 
 def Center_of_Mass(x):
@@ -99,9 +101,13 @@ def Center_of_Mass(x):
 def Metropolis_Engine(xo,vo):
     xn=xo
     vn=vo
-    beadind=int(ran.random()*(nbeads+1))
+    beadind=int(ran.random()*(nbeads))
+    print(beadind)
     xn[beadind] = xo[beadind] + move*(ran.random()-0.5)
-    vn[beadind]=PotCalc(pot, xn, beadind)
+    if pimc == 'y':
+        vn[beadind] = PIMCpot(xn, beadind)
+    else:
+        vn[beadind] = PotCalc(pot, xn[beadind])
     print("old potentials")
     print(vo)
     print("new potentials")
@@ -121,18 +127,22 @@ hist = np.zeros([10000])
 binsize = 0.001  # A
 move = .5  # A
 beta = 1.0/0.6  # mol/kcal
-nbeads = 10
+nbeads = 1
 v = False
 xo = []
 vo = []
-
+x = ran.random()
+pimc = input("PIMC (y or n)?")
+if pimc != 'y':
+    pimc == 'n'
+else:
+    nbeads = int(input("enter number of PIMC beads"))
 while v == False:
     print('enter a potential')
-    pot = input('HO,Morse,Pot3,UmPot,PIMC  ')
-    v = PotCalc(pot, xo, 0)
+    pot = input('HO,Morse,Pot3,UmPot  ')
+    v = PotCalc(pot, x)
 
 # Generate initial coords
-x = ran.random()
 xo, vo = Generate_Init()
 
 count = 0.0
@@ -140,6 +150,7 @@ samp = int(input('number of MC steps:  '))
 sqrs = x**2
 sqsum = sqrs
 vsum = v
+xsum = 0.0
 
 # xfile = open('xavg.txt','w')
 # sqrfile = open('sqravg.txt','w')
