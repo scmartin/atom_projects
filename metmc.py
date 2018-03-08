@@ -9,7 +9,7 @@ the PotCalc function.
 
 import numpy as np
 import random as ran
-
+import matplotlib.pyplot as plt
 
 def harmOsc(x):
     global k
@@ -43,7 +43,7 @@ def PIMCpot(x, ind):
     """Calculate the effective potential including due to the harmonic
     constraint between PIMC beads
     """
-    omega = 1.
+    omega = nbeads/beta
     mass = 1.
     pes = PotCalc(pot, x[ind])
     if ind < nbeads-1:
@@ -82,9 +82,9 @@ def Tot_Pot():
 def Generate_Init():
     for bead in range(nbeads):
         if bead == 0:
-            xo.append(x+move*(ran.random()-0.5))
+            xo.append(x)
         else:
-            xo.append(xo[bead-1]+move*(ran.random()-0.5))
+            xo.append(xo[bead-1]+1.)
     for i in range(nbeads):
         vo.append(PotCalc(pot, xo[i]))
     return xo, vo
@@ -98,40 +98,41 @@ def Center_of_Mass(x):
     return com
 
 
-def Metropolis_Engine(xo,vo):
-    xn=xo
-    vn=vo
+def Metropolis_Engine(x,v):
+    xi=list(x)
+    vi=list(v)
     beadind=int(ran.random()*(nbeads))
-    print(beadind)
-    xn[beadind] = xo[beadind] + move*(ran.random()-0.5)
+#    print(beadind)
+    xi[beadind] = xi[beadind] + move*(ran.random()-0.5)
     if pimc == 'y':
-        vn[beadind] = PIMCpot(xn, beadind)
+        vi[beadind] = PIMCpot(xi, beadind)
     else:
-        vn[beadind] = PotCalc(pot, xn[beadind])
-    print("old potentials")
-    print(vo)
-    print("new potentials")
-    print(vn)
-    print()
-    if vn[beadind] > vo[beadind]:
-        prob = np.exp(-beta*(vn[beadind]-vo[beadind]))
+        vi[beadind] = PotCalc(pot, xi[beadind])
+#    print("old potentials")
+#    print(v)
+#    print("new potentials")
+#    print(vi)
+#    print()
+    if vi[beadind] > v[beadind]:
+        prob = np.exp(-beta*(vi[beadind]-v[beadind]))
         if prob < ran.random():
-            xn[beadind] = xo[beadind]
-            vn[beadind] = vo[beadind]
+            print("reject")
+            xi[beadind] = x[beadind]
+            vi[beadind] = v[beadind]
+    else: print("accept")
+    x = Center_of_Mass(xi)
+    return x, xi, vi
 
-    x = Center_of_Mass(xn)
-    return x, xn, vn
 
-
-hist = np.zeros([10000])
-binsize = 0.001  # A
-move = .5  # A
-beta = 1.0/0.6  # mol/kcal
+hist = np.zeros([2000])
+binsize = 0.01  # A
+move = .000005  # A
+beta = 1.2  # mol/kcal
 nbeads = 1
 v = False
 xo = []
 vo = []
-x = ran.random()
+x = 0.
 pimc = input("PIMC (y or n)?")
 if pimc != 'y':
     pimc == 'n'
@@ -151,14 +152,16 @@ sqrs = x**2
 sqsum = sqrs
 vsum = v
 xsum = 0.0
-
+xn, vn = xo, vo
 # xfile = open('xavg.txt','w')
 # sqrfile = open('sqravg.txt','w')
 histfilename = str(pot)+'.txt'
 histfile = open(histfilename, 'w')
-
+xtraj = np.zeros((nbeads,samp))
 for i in range(samp):
-    x, xn, vn = Metropolis_Engine(xo, vo)
+    print(xn)
+    x, xn, vn = Metropolis_Engine(xn, vn)
+    xtraj[:,i] = xn
     count += 1.0
 #    print(x)
     bin = int((x+5.)/binsize)
@@ -180,6 +183,7 @@ vavg = vsum/count
 print(xavg)  #  Angstroms
 print(sqrav)  #  A^2
 print(vavg)  #  kcal/mol
+
 for i,p in enumerate(hist):
     x = float(i)*binsize-5.+binsize*0.5
     if pot=='UmPot':
@@ -192,3 +196,5 @@ for i,p in enumerate(hist):
                    ' ' + str(p_x) + '\n')
     else:
         histfile.write(str(x) + ' ' + str(p/(count*binsize)) + '\n')
+plt.plot(hist)
+plt.show()
